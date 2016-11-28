@@ -38,8 +38,14 @@ class Agent:
             tf.initialize_all_variables().run(session=self.session)
 
     def train(self):
+
+		#to avoid long starting random guessing you could pretrain your network.
+		#I sugest 100 frames recorded by human player user for supervised learning.I beleive variable "update" with high backprop coefficient 0.1, 10 epochs
+		#It would help very much, and than RL [much more time efficient effort]
+		#
+		#
         epochs = 1000
-        batch_size = 25
+        batch_size = 25  #randomized frames was good choice
         replay_buf_len = 25
         replay_buf = []
         gamma = 0.95
