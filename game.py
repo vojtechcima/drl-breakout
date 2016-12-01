@@ -35,13 +35,34 @@ class Game:
         return self.ale.game_over()
 
     def play(self):
-        while not self.game_over():
-            self.make_move(self.actions[np.random.randint(0, len(self.actions))])
-        print("Game Over! Score: %s" % self.score)
-        self.reset_game()
+        while True: 
+            while not self.game_over():
+                self.make_move(self.actions[np.random.randint(0, len(self.actions))])
+            print("Game Over! Score: %s" % self.score)
+            self.reset_game()
 
+    def play_interactive(self):
+        """
+        play using 0,1,2,3
+        save using 8
+        """
+        buf = []
+        while True:
+            S = self.get_state()
+            a = int(raw_input())
+            if(a == 8):
+                with open("data.pickle", "w") as f:
+                    pickle.dump(buf, f)
+                break
+            if(a > 3):
+                continue
+            r = self.make_move(self.actions[a])
+            S_ = self.get_state()
+            terminal = self.game_over()
+            if terminal:
+                self.reset_game()
+            buf.append((S, a, r, S_, terminal))
 
 if __name__ == "__main__":
     g = Game(False)
-    while True:
-        g.play()
+    g.play_interactive()
