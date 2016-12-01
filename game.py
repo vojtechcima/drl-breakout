@@ -17,9 +17,9 @@ class Game:
         self.make_move(self.actions[1])
 
     def get_state(self):
-        screen_data = np.zeros(self.screen_width*self.screen_height,dtype=np.float32)
-        self.ale.getScreenRGB(screen_data)
-        return screen_data
+        screen_data = np.zeros(self.screen_width*self.screen_height,dtype=np.uint8)
+        self.ale.getScreen(screen_data)
+        return screen_data.astype(dtype=np.float32) / 255.0
         
     def make_move(self, action):
         r = self.ale.act(action)

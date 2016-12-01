@@ -6,7 +6,7 @@ class Agent:
     def __init__(self, load_model=False):
         self.g = game.Game()
         self.session = tf.Session()
-        self.learning_rate = 0.01
+        self.learning_rate = 0.001
         self.shape = {"cv1": [5, 5, 1, 16],
                       "cv2": [5, 5, 16, 32],
                       "fc": [40 * 53 * 32, 128],
@@ -20,9 +20,9 @@ class Agent:
         self.y_ = tf.placeholder(tf.float32, [None, self.shape["out"][-1]])
 
         self.y = self.feed_forward()
-        self.J = tf.reduce_mean(tf.square(self.y - self.y_))
+        self.loss = tf.reduce_mean(tf.square(self.y - self.y_))
 
-        self.optimizer = tf.train.GradientDescentOptimizer(self.learning_rate).minimize(self.J)
+        self.optimizer = tf.train.RMSPropOptimizer(self.learning_rate).minimize(self.loss)
         self.correct_prediction = tf.equal(
             tf.argmax(self.y, 1), tf.argmax(self.y_, 1))
         self.accuracy = tf.reduce_mean(
@@ -31,18 +31,17 @@ class Agent:
         if load_model:
             model_path = tf.train.latest_checkpoint("./model")
             saver = tf.train.Saver()
-            #saver = tf.train.import_meta_graph("%s.meta" % model_path)
             saver.restore(self.session, model_path)
             print("Loading existing session %s" % (model_path))
         else:
             tf.initialize_all_variables().run(session=self.session)
 
-    def train(self):
+    def train(self, verbose=True):
         epochs = 1000
-        batch_size = 25
+        batch_size = 20
         replay_buf_len = 25
         replay_buf = []
-        gamma = 0.95
+        gamma = 0.9
         epsilon = 1
         save_step = 10
         saver = tf.train.Saver()
@@ -56,18 +55,18 @@ class Agent:
                     qval = self.y.eval(
                         {self.x: state.reshape(1, self.g.state_len)},
                         session=self.session)
-                    action_idx = (np.argmax(qval))
+                    action_idx = np.argmax(qval)
                 action = self.g.actions[action_idx]
                 reward = self.g.make_move(action) # Take action and get reward
                 new_state = self.g.get_state() # Get new state S'
-
-                #Experience replay storage
+                game_over = self.g.game_over()
+                
+                # Take care memory buffer
                 if (len(replay_buf) >= replay_buf_len):
                     replay_buf.pop(0)
-                replay_buf.append((state, action_idx, reward, new_state))
-                print(replay_buf[-1])
+                replay_buf.append((state, action_idx, reward, new_state, game_over))
 
-                #randomly sample our experience replay memory
+                # Sample memory buffer
                 if len(replay_buf) < batch_size:
                     sampled_replay_buf = random.sample(replay_buf, len(replay_buf))
                 else:
@@ -75,10 +74,9 @@ class Agent:
 
                 X_train = []
                 y_train = []
-                j = 1.0
-                for memory in reversed(sampled_replay_buf):
-                    # Iterate through the buffer starting with the most recent memory
-                    old_state, action_idx, reward, new_state = memory
+                for memory in sampled_replay_buf:
+                    # Iterate through the memory buffer
+                    old_state, action_idx, reward, new_state, terminal = memory
                     old_qval = self.y.eval(
                         {self.x: old_state.reshape(1, self.g.state_len)},
                         session=self.session)
@@ -89,28 +87,26 @@ class Agent:
                     max_q = np.max(new_qval)
                     y = np.zeros((1, self.g.actions_len))
                     y[:] = old_qval[:]
-                    # possible FIXME
-                    if minibatch[-1][2] == 1: # was the last action rewarded?
-                        update = reward * gamma / j
+                    if terminal:
+                        update = reward
                     else:
-                        update = max_q
+                        update = reward + gamma * max_q 
                     y[0][action_idx] = update
                     X_train.append(old_state.reshape(self.g.state_len,))
                     y_train.append(y.reshape(self.g.actions_len,))
-                    j += 1.0
                 X_train = np.array(X_train)
                 y_train = np.array(y_train)
-                print("Epoch: %s, Step: %s, Accuracy (ts): %s, J: %s" %
-                      (i, step, self.accuracy.eval({self.x: X_train, self.y_: y_train},
-                                                   session=self.session),
-                       self.J.eval({self.x: X_train, self.y_: y_train},
-                                   session=self.session)))
+                if verbose: 
+                    print("Epoch: %s, Step: %s, Loss: %s" %
+                          (i, step,
+                           self.loss.eval({self.x: X_train, self.y_: y_train},
+                                      session=self.session)))
                 # Fit model
                 self.optimizer.run({self.x: X_train, self.y_: y_train},
                                    session=self.session)
                 
                 step += 1
-                if self.g.game_over():
+                if game_over:
                     print("Game Over! Score: %s" % self.g.score)
                     self.g.reset_game()
                     break
@@ -166,8 +162,7 @@ class Agent:
             tf.matmul(h_pool2_flat, self.weights["fc"]) + self.biases["fc"])
 
         # Readout layer
-        y = tf.nn.softmax(tf.matmul(h_fc1, self.weights[
-                          "out"]) + self.biases["out"])
+        y = tf.matmul(h_fc1, self.weights["out"]) + self.biases["out"]
         return y
 
     def test(self, verbose=False):
