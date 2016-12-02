@@ -1,5 +1,6 @@
 import numpy as np
 from ale_python_interface import ALEInterface
+import pickle
 
 class Game:
     def __init__(self, display_screen=False):
@@ -54,7 +55,7 @@ class Game:
                 with open("data.pickle", "w") as f:
                     pickle.dump(buf, f)
                 break
-            if(a > 3):
+            if(a > 3 or a is None):
                 continue
             r = self.make_move(self.actions[a])
             S_ = self.get_state()
@@ -64,5 +65,5 @@ class Game:
             buf.append((S, a, r, S_, terminal))
 
 if __name__ == "__main__":
-    g = Game(False)
+    g = Game(True)
     g.play_interactive()
