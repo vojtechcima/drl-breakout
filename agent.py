@@ -3,14 +3,19 @@ import tensorflow as tf
 import game
 import random
 class Agent:
-    def __init__(self, load_model=False):
+    def __init__(self, load_model=None):
         self.g = game.Game()
         self.session = tf.Session()
-        self.learning_rate = 0.001
-        self.shape = {"cv1": [5, 5, 1, 16],
-                      "cv2": [5, 5, 16, 32],
-                      "fc": [40 * 53 * 32, 128],
-                      "out": [128, self.g.actions_len]}
+        self.learning_rate = 0.00025
+        self. grad_momentum = 0.95
+        self.shape = {"cv1": [8, 8, 1, 32],
+                      "cv2": [4, 4, 32, 64],
+                      "cv3": [3, 3, 64, 64],
+                      "fc": [540 * 64, 512],
+                      "out": [512, self.g.actions_len]}
+        self.strides = {"cv1": [1, 4, 4, 1],
+                        "cv2": [1, 2, 2, 1],
+                        "cv3": [1, 1, 1, 1]}
         self.weights = self.init_weights()
         self.biases = self.init_biases()
         self.display_step = 1
@@ -22,14 +27,14 @@ class Agent:
         self.y = self.feed_forward()
         self.loss = tf.reduce_mean(tf.square(self.y - self.y_))
 
-        self.optimizer = tf.train.RMSPropOptimizer(self.learning_rate).minimize(self.loss)
+        self.optimizer = tf.train.RMSPropOptimizer(self.learning_rate, momentum=self.grad_momentum).minimize(self.loss)
         self.correct_prediction = tf.equal(
             tf.argmax(self.y, 1), tf.argmax(self.y_, 1))
         self.accuracy = tf.reduce_mean(
             tf.cast(self.correct_prediction, tf.float32))
 
         if load_model:
-            model_path = tf.train.latest_checkpoint("./model")
+            model_path = tf.train.latest_checkpoint("./model/model")
             saver = tf.train.Saver()
             saver.restore(self.session, model_path)
             print("Loading existing session %s" % (model_path))
@@ -37,15 +42,21 @@ class Agent:
             tf.initialize_all_variables().run(session=self.session)
 
     def train(self, verbose=True):
-        epochs = 1000
-        batch_size = 20
-        replay_buf_len = 25
+        save_model = False
+        #epochs = 1000
+        batch_size = 32
+        replay_buf_len = 1000000
         replay_buf = []
-        gamma = 0.9
+        gamma = 0.99
         epsilon = 1
-        save_step = 10
+        epsilon_min = 0.1
+        save_step = 10000
+        frame = 0
+        frame_max = 10000000
         saver = tf.train.Saver()
-        for i in range(epochs):
+        t = 0
+        epoch = 1
+        while t < frame_max:
             step = 0
             while(True):
                 state = self.g.get_state() # Get state S
@@ -60,6 +71,7 @@ class Agent:
                 reward = self.g.make_move(action) # Take action and get reward
                 new_state = self.g.get_state() # Get new state S'
                 game_over = self.g.game_over()
+                t += 1
                 
                 # Take care memory buffer
                 if (len(replay_buf) >= replay_buf_len):
@@ -96,9 +108,11 @@ class Agent:
                     y_train.append(y.reshape(self.g.actions_len,))
                 X_train = np.array(X_train)
                 y_train = np.array(y_train)
+                #print self.y.eval({self.x: X_train, self.y_: y_train}, session=self.session)
+                #print self.y_.eval({self.x: X_train, self.y_: y_train}, session=self.session)
                 if verbose: 
-                    print("Epoch: %s, Step: %s, Loss: %s" %
-                          (i, step,
+                    print("Epoch: %s, Step: %s, Time: %s, Epsilon: %s, Loss: %s" %
+                          (epoch, step, t, epsilon,
                            self.loss.eval({self.x: X_train, self.y_: y_train},
                                       session=self.session)))
                 # Fit model
@@ -107,22 +121,19 @@ class Agent:
                 
                 step += 1
                 if game_over:
+                    epoch += 1
                     print("Game Over! Score: %s" % self.g.score)
                     self.g.reset_game()
                     break
 
-            if epsilon > 0.1: # decrement epsilon
-                epsilon -= ( 1. / float(epochs))
+            if epsilon > epsilon_min: # decrement epsilon
+                epsilon -= ( 1. / 1000000.)
 
-            if i % save_step == 0 and i > 0: # save model
-                saver.save(self.session, "/home/cim0009/rl/model/model")
+            if t % save_step == 0 and t > 0 and save_model: # save model
+                saver.save(self.session, "/home/cim0009/rl/model/model-%s" % t)
 
-    def conv2d(self, x, W):
-        return tf.nn.conv2d(x, W, strides=[1, 1, 1, 1], padding='SAME')
-
-    def max_pool_2x2(self, x):
-        return tf.nn.max_pool(x, ksize=[1, 2, 2, 1],
-                              strides=[1, 2, 2, 1], padding='SAME')
+    def conv2d(self, x, layer):
+        return tf.nn.conv2d(x, self.weights[layer], strides=self.strides[layer], padding='SAME')
 
     def init_weight(self, shape):
         return tf.Variable(tf.truncated_normal(shape, stddev=0.1))
@@ -148,16 +159,18 @@ class Agent:
                                       self.img_dims[1], self.img_dims[2]])
         # First conv layer
         l_cv1 = tf.nn.relu(self.conv2d(
-            x_image, self.weights["cv1"]) + self.biases["cv1"])
-        p_cv1 = self.max_pool_2x2(l_cv1)
+            x_image, "cv1") + self.biases["cv1"])
 
         # Second conv layer
         l_cv2 = tf.nn.relu(self.conv2d(
-            p_cv1, self.weights["cv2"]) + self.biases["cv2"])
-        p_cv2 = self.max_pool_2x2(l_cv2)
+            l_cv1, "cv2") + self.biases["cv2"])
+
+        # Third conv layer
+        l_cv3 = tf.nn.relu(self.conv2d(
+            l_cv2, "cv3") + self.biases["cv3"])
 
         # FC layer DO no pooling and reshaping
-        h_pool2_flat = tf.reshape(p_cv2, [-1, self.shape["fc"][0]])
+        h_pool2_flat = tf.reshape(l_cv3, [-1, self.shape["fc"][0]])
         h_fc1 = tf.nn.relu(
             tf.matmul(h_pool2_flat, self.weights["fc"]) + self.biases["fc"])
 
