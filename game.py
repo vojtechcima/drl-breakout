@@ -1,8 +1,13 @@
 import numpy as np
 from ale_python_interface import ALEInterface
+from scipy.misc import imresize, imsave
+
+np.set_printoptions(linewidth=np.inf)
+np.set_printoptions(threshold=np.inf)
+
 
 class Game:
-    def __init__(self, display_screen=False):
+    def __init__(self, state_height, state_width, display_screen=False):
         self.ale = ALEInterface()
         self.ale.setInt("frame_skip", 4)
         self.ale.setInt("random_seed", 123)
@@ -12,14 +17,32 @@ class Game:
         self.score = 0
         self.actions_len = len(self.actions)
         self.screen_width, self.screen_height = self.ale.getScreenDims()
-        self.state_len = self.screen_width * self.screen_height
+        self.state_width = state_width
+        self.state_height = state_height
+        self.state_len = self.state_width * self.state_height
         self.make_move(self.actions[0])
         self.make_move(self.actions[1])
 
     def get_state(self):
         screen_data = np.zeros(self.screen_width*self.screen_height,dtype=np.uint8)
         self.ale.getScreen(screen_data)
-        return screen_data.astype(dtype=np.float32) / 255.0
+        screen_data_2D = np.reshape(screen_data, (self.screen_height, self.screen_width))
+        resized_screen_data_2D = imresize(
+            screen_data_2D, (self.state_height, self.state_width))
+        resized_screen_data = np.reshape(
+            resized_screen_data_2D, self.state_width * self.state_height)
+        return resized_screen_data.astype(dtype=np.float32) / 255.0
+
+    def get_state_dims(self):
+        return (self.state_width, self.state_height, 1)
+
+    def save_state_to_img(self, fn):
+        screen_data = np.zeros(self.screen_width*self.screen_height,dtype=np.uint8)
+        self.ale.getScreen(screen_data)
+        screen_data_2D = np.reshape(screen_data, (self.screen_height, self.screen_width))
+        resized_screen_data_2D = imresize(
+            screen_data_2D, (self.state_height, self.state_width))
+        imsave(fn, resized_screen_data_2D)
         
     def make_move(self, action):
         r = self.ale.act(action)
@@ -64,5 +87,5 @@ class Game:
             buf.append((S, a, r, S_, terminal))
 
 if __name__ == "__main__":
-    g = Game(False)
+    g = Game(84, 84, False)
     g.play_interactive()

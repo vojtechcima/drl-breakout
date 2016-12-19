@@ -4,14 +4,14 @@ import game
 import random
 class Agent:
     def __init__(self, load_model=None):
-        self.g = game.Game()
+        self.g = game.Game(84, 84)
         self.session = tf.Session()
         self.learning_rate = 0.00025
         self. grad_momentum = 0.95
         self.shape = {"cv1": [8, 8, 1, 32],
                       "cv2": [4, 4, 32, 64],
                       "cv3": [3, 3, 64, 64],
-                      "fc": [540 * 64, 512],
+                      "fc": [121 * 64, 512],
                       "out": [512, self.g.actions_len]}
         self.strides = {"cv1": [1, 4, 4, 1],
                         "cv2": [1, 2, 2, 1],
@@ -19,9 +19,9 @@ class Agent:
         self.weights = self.init_weights()
         self.biases = self.init_biases()
         self.display_step = 1
-        self.img_dims = (self.g.screen_width, self.g.screen_height, 1)
+        self.state_dims = self.g.get_state_dims()
 
-        self.x = tf.placeholder(tf.float32, [None, self.img_dims[0] * self.img_dims[1]])
+        self.x = tf.placeholder(tf.float32, [None, self.state_dims[0] * self.state_dims[1]])
         self.y_ = tf.placeholder(tf.float32, [None, self.shape["out"][-1]])
 
         self.y = self.feed_forward()
@@ -155,8 +155,8 @@ class Agent:
 
     def feed_forward(self):
         # Reshape image for convolution [-1, width, height, no_channels]
-        x_image = tf.reshape(self.x, [-1, self.img_dims[0],
-                                      self.img_dims[1], self.img_dims[2]])
+        x_image = tf.reshape(self.x, [-1, self.state_dims[0],
+                                      self.state_dims[1], self.state_dims[2]])
         # First conv layer
         l_cv1 = tf.nn.relu(self.conv2d(
             x_image, "cv1") + self.biases["cv1"])
