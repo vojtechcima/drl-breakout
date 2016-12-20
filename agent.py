@@ -25,7 +25,7 @@ class Agent:
         self.y_ = tf.placeholder(tf.float32, [None, self.shape["out"][-1]])
 
         self.y = self.feed_forward()
-        self.loss = tf.reduce_mean(tf.square(self.y - self.y_))
+        self.loss = tf.reduce_mean(self.huber_loss(self.y - self.y_))
 
         self.optimizer = tf.train.RMSPropOptimizer(self.learning_rate, momentum=self.grad_momentum).minimize(self.loss)
         self.correct_prediction = tf.equal(
@@ -40,6 +40,9 @@ class Agent:
             print("Loading existing session %s" % (model_path))
         else:
             tf.initialize_all_variables().run(session=self.session)
+
+    def huber_loss(self, x):
+        return tf.select(tf.abs(x) < 1.0, 0.5 * tf.square(x), tf.abs(x) - 0.5)
 
     def train(self, verbose=True):
         save_model = False
