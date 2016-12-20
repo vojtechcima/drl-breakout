@@ -45,7 +45,7 @@ class Agent:
         return tf.select(tf.abs(x) < 1.0, 0.5 * tf.square(x), tf.abs(x) - 0.5)
 
     def train(self, verbose=True):
-        save_model = False
+        save_model = True
         #epochs = 1000
         batch_size = 32
         replay_buf_len = 1000000
@@ -129,11 +129,11 @@ class Agent:
                     self.g.reset_game()
                     break
 
-            if epsilon > epsilon_min: # decrement epsilon
-                epsilon -= ( 1. / 1000000.)
+                if epsilon > epsilon_min: # decrement epsilon
+                    epsilon -= ( 1. / 1000000.)
 
-            if t % save_step == 0 and t > 0 and save_model: # save model
-                saver.save(self.session, "/home/cim0009/rl/model/model-%s" % t)
+                if t % save_step == 0 and t > 0 and save_model: # save model
+                    saver.save(self.session, "/home/cim0009/rl/model/model-%s" % t)
 
     def conv2d(self, x, layer):
         return tf.nn.conv2d(x, self.weights[layer], strides=self.strides[layer], padding='SAME')
