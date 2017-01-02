@@ -78,7 +78,7 @@ class Game:
                 with open("data.pickle", "w") as f:
                     pickle.dump(buf, f)
                 break
-            if(a > 3):
+            if(a > 3 or a is None):
                 continue
             r = self.make_move(self.actions[a])
             S_ = self.get_state()
