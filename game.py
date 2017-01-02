@@ -1,4 +1,5 @@
 import numpy as np
+import pickle
 from ale_python_interface import ALEInterface
 from scipy.misc import imresize, imsave
 
