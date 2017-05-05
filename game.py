@@ -10,10 +10,10 @@ np.set_printoptions(threshold=np.inf)
 class Game:
     def __init__(self, state_height, state_width, display_screen=False):
         self.ale = ALEInterface()
-        self.ale.setInt("frame_skip", 4)
-        self.ale.setInt("random_seed", 123)
-        self.ale.setBool("display_screen", display_screen)
-        self.ale.loadROM("roms/breakout.bin")
+        self.ale.setInt(b"frame_skip", 4)
+        self.ale.setInt(b"random_seed", 123)
+        self.ale.setBool(b"display_screen", display_screen)
+        self.ale.loadROM(b"roms/breakout.bin")
         self.actions = self.ale.getMinimalActionSet()
         self.score = 0
         self.actions_len = len(self.actions)

@@ -42,7 +42,7 @@ class Agent:
             tf.initialize_all_variables().run(session=self.session)
 
     def huber_loss(self, x):
-        return tf.select(tf.abs(x) < 1.0, 0.5 * tf.square(x), tf.abs(x) - 0.5)
+        return tf.where(tf.abs(x) < 1.0, 0.5 * tf.square(x), tf.abs(x) - 0.5)
 
     def train(self, verbose=True):
         save_model = True
